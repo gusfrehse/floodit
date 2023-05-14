@@ -1,4 +1,7 @@
 
 #game-canvas {
-  border: 2px dashed black;
+  border: 3px dashed black;
+  padding: 0;
+  margin: auto;
+  display: block;
 }

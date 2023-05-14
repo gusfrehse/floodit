@@ -12,56 +12,73 @@ if (ctx === null)
 
 let currentCorner : "a" | "b" | "c" | "d" = "a";
 
+let moves: number = 0;
+
 canvas.onpointerdown = (evt) => {
   let x = evt.offsetX;
   let y = evt.offsetY;
-  console.log("x: ", x, " y: ", y, " color: ", colorAt(x, y, board), " boardSize: ", boardSize);
+  //console.log("x: ", x, " y: ", y, " color: ", colorAt(x, y, board), " boardSize: ", boardSize);
 
-  updateCorner(x, y);
+  if (!updateCorner(x, y)) {
+    moves++;
+    updateBoard(colorAt(x, y, board), currentCorner, board);
+  }
 
-  updateBoard(colorAt(x, y, board), currentCorner, board);
+  draw();
+}
+
+window.onresize = () => {
+  size = Math.min(window.innerWidth * 0.95,
+                        window.innerHeight) * 0.95; 
+
+  cellSize = size / boardSize;
+  canvas.width = size;
+  canvas.height = size;
+
+  draw();
 }
 
 type Color = number;
 type Board = Color[][];
 
-
-const size = Math.min(document.documentElement.clientWidth * 0.8,
-                      document.documentElement.clientHeight * 0.8); 
+let size = Math.min(window.innerWidth * 0.95,
+                      window.innerHeight) * 0.95; 
 
 canvas.width = size;
 canvas.height = size;
 
-const numColors = 10;
-const boardSize = 10;
+const numColors = 3;
+const boardSize = 20;
 let cellSize = size / boardSize;
 const palette = genPalette(numColors);
 let board = genRandomBoard(boardSize, numColors);
 
 draw();
 
-function updateCorner(x: number, y: number) {
+function updateCorner(x: number, y: number): boolean {
   let [i, j] = posAt(x, y);
 
   if (i === 0 && j === 0) {
     currentCorner = "a";
-    return;
+    return true;
   }
   
   if (i === 0  && j === boardSize - 1) {
     currentCorner = "b";
-    return;
+    return true;
   }
 
   if (i === boardSize - 1 && j === boardSize - 1) {
     currentCorner = "c";
-    return;
+    return true;
   }
 
   if (i === boardSize - 1 && j === 0) {
     currentCorner = "d";
-    return;
+    return true;
   }
+
+  return false;
 }
 
 function genPalette(k: number): string[] {
@@ -90,13 +107,14 @@ function genRandomBoard(n: number, k: number): Board {
 
 function draw() {
   drawBoard(board);
+  document.getElementById("move-counter")!.innerHTML = `Moves: ${moves}`;
 }
 
 function drawBoard(board: Board) {
   for (let x = 0; x < boardSize; x++) {
     for (let y = 0; y < boardSize; y++) {
       ctx!.fillStyle = palette[board[y][x]];
-      ctx!.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+      ctx!.fillRect(x * cellSize, y * cellSize, cellSize + 0.5, cellSize + 0.5);
     }
   }
 
@@ -116,8 +134,6 @@ function drawBoard(board: Board) {
     currentMarkerX = 0;
     currentMarkerY = boardSize - 1;
   }
-
-  console.log(currentCorner);
 
   ctx!.fillStyle = "hsl(0 0% 0%)";
   ctx!.beginPath();
@@ -142,7 +158,7 @@ function posAt(x: number, y: number): [number, number] {
   return [i, j];
 }
 
-function updateBoard(newColor: Color, corner: "a" | "b" | "c" | "d", board: Board) {
+async function updateBoard(newColor: Color, corner: "a" | "b" | "c" | "d", board: Board) {
   let start: [number, number];
   let visited: boolean[][] = [];
 
@@ -173,13 +189,15 @@ function updateBoard(newColor: Color, corner: "a" | "b" | "c" | "d", board: Boar
   let stack: [number, number][] = [start];
 
   let checkAndUpdate = ([y, x] : [number, number]) => {
-    if (x >= 0 && x < boardSize &&
-        y >= 0 && y < boardSize &&
-        !visited[y][x] &&
-        board[y][x] === oldColor)
-
+    if (x >= 0 && x < boardSize && y >= 0 && y < boardSize && !visited[y][x] && board[y][x] === oldColor) {
       stack.push([y, x]);
-  }
+      return true;
+    }
+
+    return false;
+  };
+
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
   while (stack.length > 0) {
     let [y, x] = stack.pop()!; // stack.length is > 0 so there must be at least 1 element.
@@ -187,12 +205,17 @@ function updateBoard(newColor: Color, corner: "a" | "b" | "c" | "d", board: Boar
     board[y][x] = newColor;
     visited[y][x] = true;
 
-    checkAndUpdate([y - 1, x]);
-    checkAndUpdate([y, x - 1]);
-    checkAndUpdate([y + 1, x]);
-    checkAndUpdate([y, x + 1]);
-  }
+    let changed = false;
+    changed = checkAndUpdate([y - 1, x]) || changed;
+    changed = checkAndUpdate([y, x - 1]) || changed;
+    changed = checkAndUpdate([y + 1, x]) || changed;
+    changed = checkAndUpdate([y, x + 1]) || changed;
 
-  draw();
+    if (changed) {
+      await sleep(2);
+      drawBoard(board);
+    }
+  }
+  drawBoard(board);
 }
 
